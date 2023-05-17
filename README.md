@@ -14,6 +14,11 @@ Download image and occupancy examples from [here](https://www.dropbox.com/sh/qhe
 ### Requirements
 check `requirements.txt`. This code was tested on python 3.8 in both Windows and Linux environments. Requirements file generated in Linux environment but should work similarly in a Windows environment. 
 
+```
+conda create -n wire python=3.8 numpy scipy matplotlib kornia opencv torch tqdm open3d scikit-image pillow
+
+```
+
 ### Denoising images with WIRE
 Check `wire_image_denoise.py` for denoise an image. We have included an example image  from div2k in `data/parrot.png`. 
 
