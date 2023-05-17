@@ -17,7 +17,7 @@ check `requirements.txt`. This code was tested on python 3.8 in both Windows and
 ```
 conda create -n wire python=3.8 numpy scipy matplotlib kornia opencv tqdm scikit-image pillow -c conda-forge
 conda activate wire
-conda install -c pytorch pytorch
+conda install pytorch torchvision pytorch-cuda=11.7 -c pytorch -c nvidia
 conda install -c open3d-admin open3d
 pip install wandb PyMCubes pytorch-msssim
 ```
