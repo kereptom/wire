@@ -5,8 +5,8 @@ modules/__pycache__
 *$py.class
 
 # Do not track results
-results/
-data/
+# results/
+# data/
 
 # C extensions
 *.so

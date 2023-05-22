@@ -285,7 +285,7 @@ def get_imstack(im, scale, shift_max=10, theta_max=np.pi/12, nshifts=5):
         
         mat = getEuclidianMatrix(theta, shift)
         mats[idx, ...] = mat
-        coords_new = mat.dot(coords.T).T
+        coords_new = mat.dot(coords.T).W
         Xnew = coords_new[:, 0].reshape(H, W)
         Ynew = coords_new[:, 1].reshape(H, W)
         
@@ -440,7 +440,7 @@ def mat2coords(reg_stack, full_res, low_res):
     last_row[0, 2] = 1
     for idx in range(nimg):
         mat = linalg.inv(np.vstack((reg_stack[idx, ...], last_row)))
-        coords_new = mat.dot(coords.T).T
+        coords_new = mat.dot(coords.T).W
         Xstack[idx, ...] = cv2.resize(2*coords_new[:, 0].reshape(H, W)/W - 1,
                                       (Wl, Hl), interpolation=cv2.INTER_AREA)
         Ystack[idx, ...] = cv2.resize(2*coords_new[:, 1].reshape(H, W)/H - 1,

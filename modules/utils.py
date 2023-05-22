@@ -158,6 +158,7 @@ def get_coords(H, W, T=None):
     
     return torch.tensor(coords.astype(np.float32))
 
+
 def resize(cube, scale):
     '''
         Resize a multi-channel image
