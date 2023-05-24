@@ -15,7 +15,7 @@ from scipy.interpolate import RegularGridInterpolator as rgi
 
 import cv2
 import torch
-import open3d as o3d
+# import open3d as o3d
 import mcubes
 
 import matplotlib.pyplot as plt
