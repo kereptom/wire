@@ -1,30 +1,42 @@
 #!/usr/bin/env python
 
 import os
-import sys
-import glob
 import tqdm
-import importlib
 import time
-import pdb
 import copy
-
 import numpy as np
 from scipy import io
 import skimage.io as sio
-from scipy import ndimage
-import cv2
-
 import torch
 from torch.optim.lr_scheduler import LambdaLR
-
 import matplotlib.pyplot as plt
 plt.gray()
-
 from modules import models
 from modules import utils
 from modules import volutils
+from PIL import Image
 import tifffile
+import wandb
+
+
+def process_image(img):
+    # Compute the MIPs along three axes
+    mip_xy = np.max(img, axis=0)
+    mip_xz = np.max(img, axis=1)
+    mip_yz = np.max(img, axis=2)
+
+    # Convert arrays into images
+    im_mip_xy = Image.fromarray(mip_xy)
+    im_mip_xz = Image.fromarray(mip_xz)
+    im_mip_yz = Image.fromarray(mip_yz)
+
+    # Concatenate along the horizontal axis (change axis as required)
+    concat = Image.new('L', (3 * im_mip_xy.width, im_mip_xy.height))
+    concat.paste(im_mip_xy, (0, 0))
+    concat.paste(im_mip_xz, (im_mip_xy.width, 0))
+    concat.paste(im_mip_yz, (2 * im_mip_xy.width, 0))
+
+    return concat
 
 
 def get_depth_mask(D, H, W, slices):
@@ -48,6 +60,10 @@ def get_width_mask(D, H, W, slices):
     return mask
 
 if __name__ == '__main__':
+
+    # Wandb logging
+    run = wandb.init(project='wire')
+
     nonlin = 'relu' # type of nonlinearity, 'wire', 'siren', 'mfn', 'relu', 'posenc', 'gauss'
     niters = 4000                # Number of SGD iterations
     learning_rate = 5e-3        # Learning rate
@@ -60,33 +76,20 @@ if __name__ == '__main__':
     # These settings work best for 3D occupancies
     omega0 = 10.0          # Frequency of sinusoid
     sigma0 = 40.0          # Sigma of Gaussian
+
+    verbose_freq = niters//10
     
     # Network constants
     hidden_layers = 2       # Number of hidden layers in the mlp
     hidden_features = 256   # Number of hidden units per layer
     maxpoints = int(2e5)    # Batch size
-    
-    if expname == 'thai_statue':
-        occupancy = True
-    else:
-        occupancy = False
-    
-    # Load image and scale
-    # im = io.loadmat('data/%s.mat'%expname)['hypercube'].astype(np.float32)
-    # im = ndimage.zoom(im/im.max(), [scale, scale, scale], order=0)
 
     im = tifffile.imread(f'data/{expname}.tiff')
     im = np.float32(im)
 
     im2 = tifffile.imread(f'data/{expname2}.tiff')
     im2 = np.float32(im2)
-    
-    # If the volume is an occupancy, clip to tightest bounding box
-    if occupancy:
-        hidx, widx, tidx = np.where(im > 0.99)
-        im = im[hidx.min():hidx.max(),
-                widx.min():widx.max(),
-                tidx.min():tidx.max()]
+
     
     print(im.shape)
     D, H, W = im.shape
@@ -152,49 +155,6 @@ if __name__ == '__main__':
     
     tic = time.time()
     print('Running %s nonlinearity'%nonlin)
-    # for idx in tbar:
-    #     indicesD = torch.randperm(len(coordsD))
-    #     indicesW = torch.randperm(len(coordsW))
-    #
-    #     train_loss = 0
-    #     nchunks = 0
-    #     for b_idx in range(0, max(len(coordsD), len(coordsW)), maxpointsD):
-    #         # Get batch indices for D and W
-    #         b_indicesD = indicesD[b_idx:min(len(coordsD), b_idx + maxpointsD)]
-    #         b_indicesW = indicesW[b_idx:min(len(coordsW), b_idx + maxpointsD)]
-    #
-    #         # Get batch coordinates for D and W
-    #         b_coordsD = coordsD[b_indicesD, ...].cuda()
-    #         b_coordsW = coordsW[b_indicesW, ...].cuda()
-    #
-    #         # Concatenate batch coordinates for D and W
-    #         b_coords = torch.cat([b_coordsD, b_coordsW], dim=0)
-    #
-    #         # Get batch pixelvalues for D and W
-    #         pixelvaluesD = imten[b_indicesD, :]
-    #         pixelvaluesW = imten2[b_indicesW, :]
-    #
-    #         # Concatenate batch pixelvalues for D and W
-    #         pixelvalues_true = torch.cat([pixelvaluesD, pixelvaluesW], dim=0).cuda()
-    #
-    #         # Forward pass
-    #         pixelvalues_pred = model(b_coords[None, ...]).squeeze()[:, None]
-    #
-    #         # Compute loss
-    #         loss = criterion(pixelvalues_pred, pixelvalues_true)
-    #
-    #         # Backward pass and optimization
-    #         optim.zero_grad()
-    #         loss.backward()
-    #         optim.step()
-    #
-    #         # Update train loss
-    #         lossval = loss.item()
-    #         train_loss += lossval
-    #         nchunks += 1
-
-
-
     for idx in tbar:
         indicesD = torch.randperm(len(coordsD))
         indicesW = torch.randperm(len(coordsW))
@@ -233,11 +193,23 @@ if __name__ == '__main__':
             train_loss += lossval
             nchunks += 1
 
-        if occupancy:
-            mse_array[idx] = volutils.get_IoU(im_estim, imten, mcubes_thres)
-        else:
-            mse_array[idx] = train_loss/nchunks
+        if not idx % verbose_freq or idx == niters - 1:
+            # Process images and upload to wandb
+            concat1 = process_image(best_img)
+            concat2 = process_image(im)
+            concat3 = process_image(im2)
+
+            wandb.log({
+                "concat1": wandb.Image(concat1),
+                "concat2": wandb.Image(concat2),
+                "concat3": wandb.Image(concat3)
+            })
+
+        mse_array[idx] = train_loss/nchunks
         time_array[idx] = time.time()
+
+        wandb.log({'mse': mse_array[idx], 'time': time_array[idx]}, step=idx)
+
         scheduler.step()
         
         if lossval < best_mse:
@@ -278,22 +250,11 @@ if __name__ == '__main__':
              'time_array': time_array-time_array[0],
              'nparams': utils.count_parameters(model)}
     io.savemat('results/%s/%s.mat'%(expname, nonlin), mdict)
-    
-    # Generate a mesh with marching cubes if it is an occupancy volume
-    if occupancy:
-        savename = 'results/%s/%s.dae'%(expname, nonlin)
-        volutils.march_and_save(best_img, mcubes_thres, savename, True)
-    
+
     print('Total time %.2f minutes'%(total_time/60))
-    if occupancy:
-        print('IoU: ', volutils.get_IoU(best_img, im, mcubes_thres))
-    else:
-        print('PSNR: ', utils.psnr(im, best_img))
+    print('PSNR: ', utils.psnr(im, best_img))
     print('Total pararmeters: %.2f million'%(nparams/1e6))
 
+    sio.imsave(f'results/{expname}/output_dual1.tiff', best_img)
 
-    # Save the array as a TIFF file
-    sio.imsave(f'results/{expname}/output_dual.tiff', best_img)
-
-    
-    
+    run.finish()

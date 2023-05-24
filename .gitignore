@@ -4,6 +4,7 @@ modules/__pycache__
 *.py[cod]
 *$py.class
 
+
 # Do not track results
 # results/
 # data/
@@ -114,6 +115,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.idea/
 
 # Spyder project settings
 .spyderproject
