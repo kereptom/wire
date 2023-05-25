@@ -15,7 +15,7 @@ Download image and occupancy examples from [here](https://www.dropbox.com/sh/qhe
 check `requirements.txt`. This code was tested on python 3.8 in both Windows and Linux environments. Requirements file generated in Linux environment but should work similarly in a Windows environment. 
 
 ```
-conda create -n wire python-3.8 numpy scipy matplotlib kornia opencv tqdm scikit-image pillow -c conda-forge
+conda create -n wire python=3.8 numpy scipy matplotlib kornia opencv tqdm scikit-image pillow -c conda-forge
 conda activate wire
 conda install pytorch torchvision pytorch-cuda=11.7 -c pytorch -c nvidia
 pip install open3d
