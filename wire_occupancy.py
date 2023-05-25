@@ -45,6 +45,11 @@ def get_width_mask(D, H, W, slices):
 
     return mask
 
+def imProcessRGB_3D(im1):
+    imNorm = lambda x: (x - 0.5) * 2
+    im1 = torch.FloatTensor(im1.astype(np.float32) * (1.0 / 65535.0)).cuda().reshape(D * H * W, 1)
+    return imNorm(im1)
+
 if __name__ == '__main__':
 
     # Wandb logging
@@ -83,15 +88,15 @@ if __name__ == '__main__':
     maxpoints = min(D * H * W, maxpoints)
 
     # Get the mask for the desired slices
-    slices = torch.arange(0, D, 2).cuda()  # 0, 10, 20, ..., 110
+    slices = torch.arange(0, D, 1).cuda()  # 0, 10, 20, ..., 110
     maskD = get_depth_mask(D, H, W, slices)
     maskW = get_width_mask(D, H, W, slices)
 
-    imten = torch.tensor(im).cuda().reshape(D * H * W, 1)
-    imten = imten[maskD]
+    im_ten = imProcessRGB_3D(im)
+    imten = im_ten[maskD]
 
-    imten2 = torch.tensor(im2).cuda().reshape(D * H * W, 1)
-    imten2 = imten2[maskW]
+    im_ten2 = imProcessRGB_3D(im2)
+    imten2 = im_ten2[maskW]
     
     if nonlin == 'posenc':
         nonlin = 'relu'
@@ -203,8 +208,8 @@ if __name__ == '__main__':
             im_log = im_estim.reshape(D, H, W).detach().cpu().numpy()
 
             concat1 = process_image(im_log)
-            concat2 = process_image(im)
-            concat3 = process_image(im2)
+            concat2 = process_image(im_ten.reshape(D, H, W).detach().cpu().numpy())
+            concat3 = process_image(im_ten2.reshape(D, H, W).detach().cpu().numpy())
 
             wandb.log({
                 "concat1": wandb.Image(concat1),
