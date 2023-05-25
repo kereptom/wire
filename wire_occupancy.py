@@ -17,6 +17,8 @@ from PIL import ImageDraw, ImageFont
 
 from PIL import ImageDraw, ImageFont
 
+from PIL import ImageDraw, ImageFont
+
 def process_image(img):
     mip_images = [Image.fromarray(np.asarray((np.max(img, axis=i) + 1) * 127).astype(np.uint8)) for i in range(3)]
     captions = ['XY MIP', 'XZ MIP', 'YZ MIP']
@@ -31,14 +33,17 @@ def process_image(img):
         # Paste images lower to accommodate padding
         concat.paste(mip, (i * mip.width, padding))
 
-        # Calculate the width of the text to be drawn
-        text_width, _ = draw.textsize(captions[i], font=font)
+        # Calculate the bounding box of the text to be drawn
+        text_bbox = draw.textbbox((0, 0), captions[i], font=font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_height = text_bbox[3] - text_bbox[1]
         text_x = (i * mip.width) + ((mip.width - text_width) // 2)  # Centered text
-        text_y = (padding // 2) - (_ // 2)  # Centered in padding
+        text_y = (padding // 2) - (text_height // 2)  # Centered in padding
 
         draw.text((text_x, text_y), captions[i], font=font, fill=255)
 
     return concat
+
 
 
 
