@@ -15,7 +15,7 @@ import wandb
 
 
 def process_image(img):
-    mip_images = [Image.fromarray(np.max(img, axis=i)) for i in range(3)]
+    mip_images = [Image.fromarray(np.asarray((np.max(img, axis=i) + 1) * 127).astype(np.uint8)) for i in range(3)]
 
     # Concatenate along the horizontal axis
     concat = Image.new('L', (3 * mip_images[0].width, mip_images[0].height))
