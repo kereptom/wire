@@ -18,8 +18,7 @@ check `requirements.txt`. This code was tested on python 3.8 in both Windows and
 conda create -n wire python=3.8 numpy scipy matplotlib kornia opencv tqdm scikit-image pillow -c conda-forge
 conda activate wire
 conda install pytorch torchvision pytorch-cuda=11.7 -c pytorch -c nvidia
-pip install open3d
-pip install wandb PyMCubes pytorch-msssim
+pip install wandb 
 ```
 
 ### Denoising images with WIRE
