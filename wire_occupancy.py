@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import os
 import tqdm
 import time
@@ -9,32 +7,20 @@ from scipy import io
 import skimage.io as sio
 import torch
 from torch.optim.lr_scheduler import LambdaLR
-import matplotlib.pyplot as plt
-plt.gray()
 from modules import models
 from modules import utils
-from modules import volutils
 from PIL import Image
 import tifffile
 import wandb
 
 
 def process_image(img):
-    # Compute the MIPs along three axes
-    mip_xy = np.max(img, axis=0)
-    mip_xz = np.max(img, axis=1)
-    mip_yz = np.max(img, axis=2)
+    mip_images = [Image.fromarray(np.max(img, axis=i)) for i in range(3)]
 
-    # Convert arrays into images
-    im_mip_xy = Image.fromarray(mip_xy)
-    im_mip_xz = Image.fromarray(mip_xz)
-    im_mip_yz = Image.fromarray(mip_yz)
-
-    # Concatenate along the horizontal axis (change axis as required)
-    concat = Image.new('L', (3 * im_mip_xy.width, im_mip_xy.height))
-    concat.paste(im_mip_xy, (0, 0))
-    concat.paste(im_mip_xz, (im_mip_xy.width, 0))
-    concat.paste(im_mip_yz, (2 * im_mip_xy.width, 0))
+    # Concatenate along the horizontal axis
+    concat = Image.new('L', (3 * mip_images[0].width, mip_images[0].height))
+    for i, mip in enumerate(mip_images):
+        concat.paste(mip, (i * mip.width, 0))
 
     return concat
 
@@ -74,8 +60,8 @@ if __name__ == '__main__':
     
     # Gabor filter constants
     # These settings work best for 3D occupancies
-    omega0 = 10.0          # Frequency of sinusoid
-    sigma0 = 40.0          # Sigma of Gaussian
+    omega0 = 20.0          # Frequency of sinusoid
+    sigma0 = 30.0          # Sigma of Gaussian
 
     verbose_freq = niters//10
     
@@ -193,9 +179,30 @@ if __name__ == '__main__':
             train_loss += lossval
             nchunks += 1
 
+        mse_array[idx] = train_loss/nchunks
+        time_array[idx] = time.time()
+
+        wandb.log({'mse': mse_array[idx], 'time': time_array[idx]}, step=idx)
+
+        scheduler.step()
+
         if not idx % verbose_freq or idx == niters - 1:
             # Process images and upload to wandb
-            concat1 = process_image(best_img)
+            coords = utils.get_coords(D, H, W)
+            im_estim = torch.zeros(coords.shape[0], 1, device='cuda')
+            indices = torch.randperm(len(coords))
+            with torch.no_grad():
+                for b_idx in range(0, len(coords), maxpoints):
+                    b_indices = indices[b_idx:min(len(coords), b_idx + maxpoints)]
+                    b_coords = coords[b_indices, ...].cuda()
+                    b_indices = b_indices.cuda()
+                    pixelvalues = model(b_coords[None, ...]).squeeze()[:, None]
+
+                    im_estim[b_indices, :] = pixelvalues
+
+            im_log = im_estim.reshape(D, H, W).detach().cpu().numpy()
+
+            concat1 = process_image(im_log)
             concat2 = process_image(im)
             concat3 = process_image(im2)
 
@@ -205,37 +212,12 @@ if __name__ == '__main__':
                 "concat3": wandb.Image(concat3)
             })
 
-        mse_array[idx] = train_loss/nchunks
-        time_array[idx] = time.time()
-
-        wandb.log({'mse': mse_array[idx], 'time': time_array[idx]}, step=idx)
-
-        scheduler.step()
-        
-        if lossval < best_mse:
-            best_mse = lossval
-            best_img = copy.deepcopy(im_estim)
-
         tbar.set_description('%.4e'%mse_array[idx])
         tbar.refresh()
         
     total_time = time.time() - tic
     nparams = utils.count_parameters(model)
 
-    coords = utils.get_coords(D, H, W)
-    im_estim = torch.zeros(coords.shape[0], 1, device='cuda')
-    indices = torch.randperm(len(coords))
-    with torch.no_grad():
-        for b_idx in range(0, len(coords), maxpoints):
-            b_indices = indices[b_idx:min(len(coords), b_idx + maxpoints)]
-            b_coords = coords[b_indices, ...].cuda()
-            b_indices = b_indices.cuda()
-            pixelvalues = model(b_coords[None, ...]).squeeze()[:, None]
-
-            im_estim[b_indices, :] = pixelvalues
-
-    best_img = im_estim.reshape(D, H, W).detach().cpu().numpy()
-    
     if posencode:
         nonlin = 'posenc'
         
