@@ -77,9 +77,9 @@ if __name__ == '__main__':
     # Wandb logging
     run = wandb.init(project='wire')
 
-    nonlin = 'siren' # type of nonlinearity, 'wire', 'siren', 'mfn', 'relu', 'posenc', 'gauss'
+    nonlin = 'wire' # type of nonlinearity, 'wire', 'siren', 'mfn', 'relu', 'posenc', 'gauss'
     niters = 4000                # Number of SGD iterations
-    learning_rate = 5e-3        # Learning rate
+    learning_rate = 1e-3        # Learning rate
     expname = '5_SPIMA_noAffine'     # Volume to load
     expname2 = '5_SPIMB_noAffine'  # Volume to load
     scale = 1                 # Run at lower scales to testing
@@ -87,8 +87,8 @@ if __name__ == '__main__':
     
     # Gabor filter constants
     # These settings work best for 3D occupancies
-    omega0 = 20.0          # Frequency of sinusoid
-    sigma0 = 30.0          # Sigma of Gaussian
+    omega0 = 30.0          # Frequency of sinusoid
+    sigma0 = 20.0          # Sigma of Gaussian
 
     verbose_freq = niters//10
     
