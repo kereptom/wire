@@ -12,17 +12,34 @@ from modules import utils
 from PIL import Image
 import tifffile
 import wandb
+from PIL import ImageDraw, ImageFont
 
+
+from PIL import ImageDraw, ImageFont
 
 def process_image(img):
     mip_images = [Image.fromarray(np.asarray((np.max(img, axis=i) + 1) * 127).astype(np.uint8)) for i in range(3)]
+    captions = ['XY MIP', 'XZ MIP', 'YZ MIP']
 
-    # Concatenate along the horizontal axis
-    concat = Image.new('L', (3 * mip_images[0].width, mip_images[0].height))
+    padding = 50  # Adjust this value as needed
+    # Increase canvas size to accommodate padding
+    concat = Image.new('L', (3 * mip_images[0].width, mip_images[0].height + padding))
+    draw = ImageDraw.Draw(concat)
+    font = ImageFont.load_default()  # use a default font
+
     for i, mip in enumerate(mip_images):
-        concat.paste(mip, (i * mip.width, 0))
+        # Paste images lower to accommodate padding
+        concat.paste(mip, (i * mip.width, padding))
+
+        # Calculate the width of the text to be drawn
+        text_width, _ = draw.textsize(captions[i], font=font)
+        text_x = (i * mip.width) + ((mip.width - text_width) // 2)  # Centered text
+        text_y = (padding // 2) - (_ // 2)  # Centered in padding
+
+        draw.text((text_x, text_y), captions[i], font=font, fill=255)
 
     return concat
+
 
 
 def get_depth_mask(D, H, W, slices):
@@ -207,14 +224,14 @@ if __name__ == '__main__':
 
             im_log = im_estim.reshape(D, H, W).detach().cpu().numpy()
 
-            concat1 = process_image(im_log)
-            concat2 = process_image(im_ten.reshape(D, H, W).detach().cpu().numpy())
-            concat3 = process_image(im_ten2.reshape(D, H, W).detach().cpu().numpy())
+            con_recon = process_image(im_log)
+            con_A = process_image(im_ten.reshape(D, H, W).detach().cpu().numpy())
+            con_B = process_image(im_ten2.reshape(D, H, W).detach().cpu().numpy())
 
             wandb.log({
-                "concat1": wandb.Image(concat1),
-                "concat2": wandb.Image(concat2),
-                "concat3": wandb.Image(concat3)
+                "Recon": wandb.Image(con_recon),
+                "ViewA": wandb.Image(con_A),
+                "ViewB": wandb.Image(con_B)
             })
 
         tbar.set_description('%.4e'%mse_array[idx])
