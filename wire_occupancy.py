@@ -77,7 +77,7 @@ if __name__ == '__main__':
     # Wandb logging
     run = wandb.init(project='wire')
 
-    nonlin = 'relu' # type of nonlinearity, 'wire', 'siren', 'mfn', 'relu', 'posenc', 'gauss'
+    nonlin = 'siren' # type of nonlinearity, 'wire', 'siren', 'mfn', 'relu', 'posenc', 'gauss'
     niters = 4000                # Number of SGD iterations
     learning_rate = 5e-3        # Learning rate
     expname = '5_SPIMA_noAffine'     # Volume to load
@@ -245,25 +245,7 @@ if __name__ == '__main__':
     total_time = time.time() - tic
     nparams = utils.count_parameters(model)
 
-    if posencode:
-        nonlin = 'posenc'
-        
-    # Save data
-    os.makedirs('results/%s'%expname, exist_ok=True)
-    
-    indices, = np.where(time_array > 0)
-    time_array = time_array[indices]
-    mse_array = mse_array[indices]
-    
-    mdict = {'mse_array': mse_array,
-             'time_array': time_array-time_array[0],
-             'nparams': utils.count_parameters(model)}
-    io.savemat('results/%s/%s.mat'%(expname, nonlin), mdict)
-
     print('Total time %.2f minutes'%(total_time/60))
-    print('PSNR: ', utils.psnr(im, best_img))
     print('Total pararmeters: %.2f million'%(nparams/1e6))
-
-    sio.imsave(f'results/{expname}/output_dual1.tiff', best_img)
 
     run.finish()
