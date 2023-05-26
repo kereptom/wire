@@ -251,11 +251,11 @@ if __name__ == '__main__':
 
             # calculate PSNR and SSIM
             psnr_gt = skimage.metrics.peak_signal_noise_ratio(gt_normalized, im_log_normalized)
-            ssim_gt = skimage.metrics.structural_similarity(gt_normalized, im_log_normalized, multichannel=True)
+            ssim_gt = skimage.metrics.structural_similarity(gt_normalized, im_log_normalized)
             psnr_A = skimage.metrics.peak_signal_noise_ratio(im_normalized, im_log_normalized)
-            ssim_A = skimage.metrics.structural_similarity(im_normalized, im_log_normalized, multichannel=True)
+            ssim_A = skimage.metrics.structural_similarity(im_normalized, im_log_normalized)
             psnr_B = skimage.metrics.peak_signal_noise_ratio(im2_normalized, im_log_normalized)
-            ssim_B = skimage.metrics.structural_similarity(im2_normalized, im_log_normalized, multichannel=True)
+            ssim_B = skimage.metrics.structural_similarity(im2_normalized, im_log_normalized)
 
             # log PSNR and SSIM to wandb
             run.log({"PSNR_gt": psnr_gt, "SSIM_gt": ssim_gt, "PSNR_A": psnr_A, "SSIM_A": ssim_A, "PSNR_B": psnr_B, "SSIM_B": ssim_B})
