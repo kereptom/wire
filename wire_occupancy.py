@@ -59,8 +59,7 @@ def get_random_word():
     return random.choice(words.words())
 
 def init_wandb(hyperparameters):
-    run_name = f"{hyperparameters['nonlin']}_w{int(hyperparameters['omega0'])}_s{int(hyperparameters['sigma0'])}_l{hyperparameters['lr']:.0e}_{get_random_word()}"
-    run = wandb.init(config=hyperparameters, project=hyperparameters['project'], name=run_name)
+    run = wandb.init(config=hyperparameters, project=hyperparameters['project'])
     return wandb.config, run
 
 def process_image(img):
