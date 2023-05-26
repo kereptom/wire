@@ -1,10 +1,6 @@
-import os
 import tqdm
 import time
-import copy
 import numpy as np
-from scipy import io
-import skimage.io as sio
 import torch
 from torch.optim.lr_scheduler import LambdaLR
 from modules import models
@@ -12,12 +8,37 @@ from modules import utils
 from PIL import Image
 import tifffile
 import wandb
+import random
 from PIL import ImageDraw, ImageFont
 
+def prepare_hyperparameters():
+    return dict(
+        project='wire',
+        verbose=True,
+        verbose_freq=400,
+        num_iter=4000,
+        lr=1e-3,
+        expname='5_SPIMA_noAffine',
+        expname2='5_SPIMB_noAffine',
+        scale=1,
+        omega0=30.0,
+        sigma0=20.0,
+        hidden_layers=2,
+        hidden_features=256,
+        maxpoints=int(2e5),
+        device='cuda',
+        nonlin='wire'
+    )
 
-from PIL import ImageDraw, ImageFont
+def set_seeds(seed=7):
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    torch.cuda.manual_seed(seed)
+    random.seed(seed)
 
-from PIL import ImageDraw, ImageFont
+def init_wandb(hyperparameters, project="wire"):
+    run = wandb.init(config=hyperparameters, project=project)
+    return wandb.config, run
 
 def process_image(img):
     mip_images = [Image.fromarray(np.asarray((np.max(img, axis=i) + 1) * 127).astype(np.uint8)) for i in range(3)]
@@ -43,9 +64,6 @@ def process_image(img):
         draw.text((text_x, text_y), captions[i], font=font, fill=255)
 
     return concat
-
-
-
 
 def get_depth_mask(D, H, W, slices):
     # Generate a tensor of the depth index for each element in the flattened tensors
@@ -74,40 +92,21 @@ def imProcessRGB_3D(im1):
 
 if __name__ == '__main__':
 
-    # Wandb logging
-    run = wandb.init(project='wire')
+    set_seeds()
+    hyperparameters = prepare_hyperparameters()
+    config, run = init_wandb(hyperparameters, project=hyperparameters['project'])
 
-    nonlin = 'wire' # type of nonlinearity, 'wire', 'siren', 'mfn', 'relu', 'posenc', 'gauss'
-    niters = 4000                # Number of SGD iterations
-    learning_rate = 1e-3        # Learning rate
-    expname = '5_SPIMA_noAffine'     # Volume to load
-    expname2 = '5_SPIMB_noAffine'  # Volume to load
-    scale = 1                 # Run at lower scales to testing
-    mcubes_thres = 0.5          # Threshold for marching cubes
-    
-    # Gabor filter constants
-    # These settings work best for 3D occupancies
-    omega0 = 30.0          # Frequency of sinusoid
-    sigma0 = 20.0          # Sigma of Gaussian
-
-    verbose_freq = niters//10
-    
-    # Network constants
-    hidden_layers = 2       # Number of hidden layers in the mlp
-    hidden_features = 256   # Number of hidden units per layer
-    maxpoints = int(2e5)    # Batch size
-
-    im = tifffile.imread(f'data/{expname}.tiff')
+    im = tifffile.imread(f'data/{config.expname}.tiff')
     im = np.float32(im)
 
-    im2 = tifffile.imread(f'data/{expname2}.tiff')
+    im2 = tifffile.imread(f'data/{config.expname2}.tiff')
     im2 = np.float32(im2)
 
     
     print(im.shape)
     D, H, W = im.shape
     
-    maxpoints = min(D * H * W, maxpoints)
+    maxpts = min(D * H * W, config.maxpoints)
 
     # Get the mask for the desired slices
     slices = torch.arange(0, D, 1).cuda()  # 0, 10, 20, ..., 110
@@ -120,7 +119,7 @@ if __name__ == '__main__':
     im_ten2 = imProcessRGB_3D(im2)
     imten2 = im_ten2[maskW]
     
-    if nonlin == 'posenc':
+    if config.nonlin == 'posenc':
         nonlin = 'relu'
         posencode = True
     else:
@@ -131,19 +130,19 @@ if __name__ == '__main__':
                     nonlin=nonlin,
                     in_features=3,
                     out_features=1, 
-                    hidden_features=hidden_features,
-                    hidden_layers=hidden_layers,
-                    first_omega_0=omega0,
-                    hidden_omega_0=omega0,
-                    scale=sigma0,
+                    hidden_features=config.hidden_features,
+                    hidden_layers=config.hidden_layers,
+                    first_omega_0=config.omega0,
+                    hidden_omega_0=config.omega0,
+                    scale=config.sigma0,
                     pos_encode=posencode,
                     sidelength=max(D, H, W)).cuda()
     
     # Optimizer
-    optim = torch.optim.Adam(lr=learning_rate, params=model.parameters())
+    optim = torch.optim.Adam(lr=config.learning_rate, params=model.parameters())
     
     # Schedule to 0.1 times the initial rate
-    scheduler = LambdaLR(optim, lambda x: 0.2**min(x/niters, 1))
+    scheduler = LambdaLR(optim, lambda x: 0.2**min(x/config.niters, 1))
 
     criterion = torch.nn.MSELoss()
     
@@ -153,15 +152,15 @@ if __name__ == '__main__':
     coordsD = coords[maskD]
     coordsW = coords[maskW]
 
-    maxpointsD = min(len(coordsD), maxpoints)
-    maxpointsW = min(len(coordsW), maxpoints)
+    maxpointsD = min(len(coordsD), maxpts)
+    maxpointsW = min(len(coordsW), maxpts)
     
-    mse_array = np.zeros(niters)
-    time_array = np.zeros(niters)
+    mse_array = np.zeros(config.niters)
+    time_array = np.zeros(config.niters)
     best_mse = float('inf')
     best_img = None
 
-    tbar = tqdm.tqdm(range(niters))
+    tbar = tqdm.tqdm(range(config.niters))
     
     im_estim = torch.zeros(coordsD.shape[0], 1, device='cuda')
     im_estim2 = torch.zeros(coordsW.shape[0], 1, device='cuda')
@@ -213,14 +212,14 @@ if __name__ == '__main__':
 
         scheduler.step()
 
-        if not idx % verbose_freq or idx == niters - 1:
+        if not idx % config.verbose_freq or idx == config.niters - 1:
             # Process images and upload to wandb
             coords = utils.get_coords(D, H, W)
             im_estim = torch.zeros(coords.shape[0], 1, device='cuda')
             indices = torch.randperm(len(coords))
             with torch.no_grad():
-                for b_idx in range(0, len(coords), maxpoints):
-                    b_indices = indices[b_idx:min(len(coords), b_idx + maxpoints)]
+                for b_idx in range(0, len(coords), maxpts):
+                    b_indices = indices[b_idx:min(len(coords), b_idx + maxpts)]
                     b_coords = coords[b_indices, ...].cuda()
                     b_indices = b_indices.cuda()
                     pixelvalues = model(b_coords[None, ...]).squeeze()[:, None]
