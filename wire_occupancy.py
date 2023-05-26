@@ -169,7 +169,7 @@ if __name__ == '__main__':
     im_estim2 = torch.zeros(coordsW.shape[0], 1, device='cuda')
     
     tic = time.time()
-    print('Running %s nonlinearity'%nonlin)
+    print('Running %s nonlinearity'%config.nonlin)
     for idx in tbar:
         indicesD = torch.randperm(len(coordsD))
         indicesW = torch.randperm(len(coordsW))
