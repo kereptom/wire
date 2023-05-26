@@ -10,14 +10,16 @@ import tifffile
 import wandb
 import random
 from PIL import ImageDraw, ImageFont
+import nltk
+nltk.download('words')
 
 def prepare_hyperparameters():
     return dict(
-        project='wire',
+        project='relu',
         verbose=True,
         verbose_freq=400,
         num_iter=4000,
-        lr=1e-3,
+        lr=5e-3,
         expname='5_SPIMA_noAffine',
         expname2='5_SPIMB_noAffine',
         scale=1,
@@ -36,8 +38,12 @@ def set_seeds(seed=7):
     torch.cuda.manual_seed(seed)
     random.seed(seed)
 
-def init_wandb(hyperparameters, project="wire"):
-    run = wandb.init(config=hyperparameters, project=project)
+def get_random_word():
+    return random.choice(words.words())
+
+def init_wandb(hyperparameters):
+    run_name = f"{hyperparameters['project']}_w{hyperparameters['omega0']}_s{hyperparameters['sigma0']}_{hyperparameters['lr']}_{get_random_word()}"
+    run = wandb.init(config=hyperparameters, project=hyperparameters['project'], name=run_name)
     return wandb.config, run
 
 def process_image(img):
@@ -94,7 +100,7 @@ if __name__ == '__main__':
 
     set_seeds()
     hyperparameters = prepare_hyperparameters()
-    config, run = init_wandb(hyperparameters, project=hyperparameters['project'])
+    config, run = init_wandb(hyperparameters)
 
     im = tifffile.imread(f'data/{config.expname}.tiff')
     im = np.float32(im)
@@ -139,7 +145,7 @@ if __name__ == '__main__':
                     sidelength=max(D, H, W)).cuda()
     
     # Optimizer
-    optim = torch.optim.Adam(lr=config.learning_rate, params=model.parameters())
+    optim = torch.optim.Adam(lr=config.lr, params=model.parameters())
     
     # Schedule to 0.1 times the initial rate
     scheduler = LambdaLR(optim, lambda x: 0.2**min(x/config.niters, 1))
