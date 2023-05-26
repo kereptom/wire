@@ -29,6 +29,8 @@ def prepare_hyperparameters():
         sigma0=20.0,
         hidden_layers=2,
         hidden_features=256,
+        in_features=3,
+        out_features=1,
         maxpoints=int(2e5),
         device='cuda',
         nonlin='wire'
@@ -131,9 +133,9 @@ if __name__ == '__main__':
     
     # Create model
     model = models.get_INR(
-                    nonlin=nonlin,
-                    in_features=3,
-                    out_features=1, 
+                    nonlin=config.nonlin,
+                    in_features=config.in_features,
+                    out_features=config.out_features,
                     hidden_features=config.hidden_features,
                     hidden_layers=config.hidden_layers,
                     first_omega_0=config.omega0,
