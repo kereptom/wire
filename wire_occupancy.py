@@ -12,6 +12,7 @@ import random
 from PIL import ImageDraw, ImageFont
 import nltk
 from nltk.corpus import words
+import skimage
 
 def prepare_hyperparameters():
     return dict(
@@ -21,6 +22,7 @@ def prepare_hyperparameters():
         verbose_freq=400,
         niters=4000,
         lr=5e-3,
+        original='3_GT',
         expname='5_SPIMA_noAffine',
         expname2='5_SPIMB_noAffine',
         bit_depth=16,
@@ -34,6 +36,19 @@ def prepare_hyperparameters():
         maxpoints=int(2e5),
         device='cuda'
     )
+
+def normalize(img_np, invert=False):
+    img_min = np.min(img_np)
+    img_max = np.max(img_np)
+
+    new_min = 0
+    new_max = 1
+    img_normd = (img_np - img_min) * ((new_max - new_min) / (img_max - img_min)) + new_min
+
+    if invert:
+        img_normd = new_max - img_normd
+
+    return img_normd
 
 def set_seeds(seed=7):
     torch.manual_seed(seed)
@@ -106,8 +121,12 @@ if __name__ == '__main__':
     hyperparameters = prepare_hyperparameters()
     config, run = init_wandb(hyperparameters)
 
+    gt = np.float32(tifffile.imread(f'data/{config.original}.tiff'))
+    gt_normalized = normalize(gt.astype(np.float32))
     im = np.float32(tifffile.imread(f'data/{config.expname}.tiff'))
+    im_normalized = normalize(im.astype(np.float32))
     im2 = np.float32(tifffile.imread(f'data/{config.expname2}.tiff'))
+    im2_normalized = normalize(im2.astype(np.float32))
 
     print(f'[INFO] Image shape: {im.shape}')
     D, H, W = im.shape
@@ -210,7 +229,7 @@ if __name__ == '__main__':
         mse_array[idx] = train_loss/nchunks
         time_array[idx] = time.time()
 
-        wandb.log({'mse': mse_array[idx], 'time': time_array[idx]}, step=idx)
+        wandb.log({'mse': mse_array[idx]}, step=idx)
 
         scheduler.step()
 
@@ -229,6 +248,18 @@ if __name__ == '__main__':
                     im_estim[b_indices, :] = pixelvalues
 
             im_log = im_estim.reshape(D, H, W).detach().cpu().numpy()
+            im_log_normalized = normalize(im_log.astype(np.float32))
+
+            # calculate PSNR and SSIM
+            psnr_gt = skimage.metrics.peak_signal_noise_ratio(gt_normalized, im_log_normalized)
+            ssim_gt = skimage.metrics.structural_similarity(gt_normalized, im_log_normalized, multichannel=True)
+            psnr_A = skimage.metrics.peak_signal_noise_ratio(im_normalized, im_log_normalized)
+            ssim_A = skimage.metrics.structural_similarity(im_normalized, im_log_normalized, multichannel=True)
+            psnr_B = skimage.metrics.peak_signal_noise_ratio(im2_normalized, im_log_normalized)
+            ssim_B = skimage.metrics.structural_similarity(im2_normalized, im_log_normalized, multichannel=True)
+
+            # log PSNR and SSIM to wandb
+            run.log({"PSNR_gt": psnr_gt, "SSIM_gt": ssim_gt, "PSNR_A": psnr_A, "SSIM_A": ssim_A, "PSNR_B": psnr_B, "SSIM_B": ssim_B})
 
             con_recon = process_image(im_log)
             con_A = process_image(im_ten.reshape(D, H, W).detach().cpu().numpy())
