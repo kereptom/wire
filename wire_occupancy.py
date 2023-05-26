@@ -54,7 +54,6 @@ def set_seeds(seed=7):
     torch.manual_seed(seed)
     np.random.seed(seed)
     torch.cuda.manual_seed(seed)
-    random.seed(seed)
 
 def get_random_word():
     return random.choice(words.words())
