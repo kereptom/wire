@@ -11,7 +11,6 @@ import wandb
 import random
 from PIL import ImageDraw, ImageFont
 import nltk
-nltk.download('words')
 from nltk.corpus import words
 
 def prepare_hyperparameters():
@@ -46,7 +45,7 @@ def get_random_word():
     return random.choice(words.words())
 
 def init_wandb(hyperparameters):
-    run_name = f"{hyperparameters['project']}_w{hyperparameters['omega0']}_s{hyperparameters['sigma0']}_{hyperparameters['lr']}_{get_random_word()}"
+    run_name = f"{hyperparameters['nonlin']}_w{int(hyperparameters['omega0'])}_s{int(hyperparameters['sigma0'])}_l{hyperparameters['lr']:.0e}_{get_random_word()}"
     run = wandb.init(config=hyperparameters, project=hyperparameters['project'], name=run_name)
     return wandb.config, run
 
