@@ -12,6 +12,7 @@ import random
 from PIL import ImageDraw, ImageFont
 import nltk
 nltk.download('words')
+from nltk.corpus import words
 
 def prepare_hyperparameters():
     return dict(
@@ -22,6 +23,7 @@ def prepare_hyperparameters():
         lr=5e-3,
         expname='5_SPIMA_noAffine',
         expname2='5_SPIMB_noAffine',
+        bit_depth=16,
         scale=1,
         omega0=30.0,
         sigma0=20.0,
@@ -91,9 +93,10 @@ def get_width_mask(D, H, W, slices):
 
     return mask
 
-def imProcessRGB_3D(im1):
+def imProcessRGB_3D(im1, bit_depth=16):
+    max_val = 2**bit_depth - 1
     imNorm = lambda x: (x - 0.5) * 2
-    im1 = torch.FloatTensor(im1.astype(np.float32) * (1.0 / 65535.0)).cuda().reshape(D * H * W, 1)
+    im1 = torch.FloatTensor(im1.astype(np.float32) * (1.0 / max_val)).cuda().reshape(D * H * W, 1)
     return imNorm(im1)
 
 if __name__ == '__main__':
@@ -102,16 +105,11 @@ if __name__ == '__main__':
     hyperparameters = prepare_hyperparameters()
     config, run = init_wandb(hyperparameters)
 
-    im = tifffile.imread(f'data/{config.expname}.tiff')
-    im = np.float32(im)
+    im = np.float32(tifffile.imread(f'data/{config.expname}.tiff'))
+    im2 = np.float32(tifffile.imread(f'data/{config.expname2}.tiff'))
 
-    im2 = tifffile.imread(f'data/{config.expname2}.tiff')
-    im2 = np.float32(im2)
-
-    
-    print(im.shape)
+    print(f'[INFO] Image shape: {im.shape}')
     D, H, W = im.shape
-    
     maxpts = min(D * H * W, config.maxpoints)
 
     # Get the mask for the desired slices
@@ -119,10 +117,10 @@ if __name__ == '__main__':
     maskD = get_depth_mask(D, H, W, slices)
     maskW = get_width_mask(D, H, W, slices)
 
-    im_ten = imProcessRGB_3D(im)
+    im_ten = imProcessRGB_3D(im, bit_depth=config.bit_depth)
     imten = im_ten[maskD]
 
-    im_ten2 = imProcessRGB_3D(im2)
+    im_ten2 = imProcessRGB_3D(im2, bit_depth=config.bit_depth)
     imten2 = im_ten2[maskW]
     
     if config.nonlin == 'posenc':
@@ -163,9 +161,6 @@ if __name__ == '__main__':
     
     mse_array = np.zeros(config.niters)
     time_array = np.zeros(config.niters)
-    best_mse = float('inf')
-    best_img = None
-
     tbar = tqdm.tqdm(range(config.niters))
     
     im_estim = torch.zeros(coordsD.shape[0], 1, device='cuda')
