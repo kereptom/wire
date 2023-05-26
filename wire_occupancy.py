@@ -19,7 +19,7 @@ def prepare_hyperparameters():
         project='relu',
         verbose=True,
         verbose_freq=400,
-        num_iter=4000,
+        niters=4000,
         lr=5e-3,
         expname='5_SPIMA_noAffine',
         expname2='5_SPIMB_noAffine',
