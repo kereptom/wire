@@ -16,7 +16,8 @@ from nltk.corpus import words
 
 def prepare_hyperparameters():
     return dict(
-        project='relu',
+        project='wire',
+        nonlin='relu',
         verbose=True,
         verbose_freq=400,
         niters=4000,
@@ -32,8 +33,7 @@ def prepare_hyperparameters():
         in_features=3,
         out_features=1,
         maxpoints=int(2e5),
-        device='cuda',
-        nonlin='wire'
+        device='cuda'
     )
 
 def set_seeds(seed=7):
@@ -78,27 +78,27 @@ def process_image(img):
 def get_depth_mask(D, H, W, slices):
     # Generate a tensor of the depth index for each element in the flattened tensors
     depth_indices = torch.arange(D * H * W) // (H * W)
-    depth_indices = depth_indices.cuda()
+    depth_indices = depth_indices.to(config.device)
 
     # Generate a boolean mask indicating whether each element is in one of the desired slices
-    mask = torch.isin(depth_indices, torch.tensor(slices, device='cuda'))
+    mask = torch.isin(depth_indices, slices.clone().detach())
 
     return mask
 
 def get_width_mask(D, H, W, slices):
     # Generate a tensor of the width index for each element in the flattened tensors
     width_indices = torch.arange(D * H * W) % W
-    width_indices = width_indices.cuda()
+    width_indices = width_indices.to(config.device)
 
     # Generate a boolean mask indicating whether each element is in one of the desired slices
-    mask = torch.isin(width_indices, torch.tensor(slices, device='cuda'))
+    mask = torch.isin(width_indices, slices.clone().detach())
 
     return mask
 
 def imProcessRGB_3D(im1, bit_depth=16):
     max_val = 2**bit_depth - 1
     imNorm = lambda x: (x - 0.5) * 2
-    im1 = torch.FloatTensor(im1.astype(np.float32) * (1.0 / max_val)).cuda().reshape(D * H * W, 1)
+    im1 = torch.FloatTensor(im1.astype(np.float32) * (1.0 / max_val)).to(config.device).reshape(D * H * W, 1)
     return imNorm(im1)
 
 if __name__ == '__main__':
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     maxpts = min(D * H * W, config.maxpoints)
 
     # Get the mask for the desired slices
-    slices = torch.arange(0, D, 1).cuda()  # 0, 10, 20, ..., 110
+    slices = torch.arange(0, D, 1).to(config.device)  # 0, 10, 20, ..., 110
     maskD = get_depth_mask(D, H, W, slices)
     maskW = get_width_mask(D, H, W, slices)
 
@@ -142,7 +142,7 @@ if __name__ == '__main__':
                     hidden_omega_0=config.omega0,
                     scale=config.sigma0,
                     pos_encode=posencode,
-                    sidelength=max(D, H, W)).cuda()
+                    sidelength=max(D, H, W)).to(config.device)
     
     # Optimizer
     optim = torch.optim.Adam(lr=config.lr, params=model.parameters())
@@ -154,7 +154,7 @@ if __name__ == '__main__':
     
     # Create inputs
     coords = utils.get_coords(D, H, W)
-    coords = coords.cuda()
+    coords = coords.to(config.device)
     coordsD = coords[maskD]
     coordsW = coords[maskW]
 
@@ -178,8 +178,8 @@ if __name__ == '__main__':
         nchunks = 0
         for b_idx in range(0, len(coordsD), maxpointsD):
             b_indices = indicesD[b_idx:min(len(coordsD), b_idx + maxpointsD)]
-            b_coords = coordsD[b_indices, ...].cuda()
-            b_indices = b_indices.cuda()
+            b_coords = coordsD[b_indices, ...].to(config.device)
+            b_indices = b_indices.to(config.device)
             pixelvalues = model(b_coords[None, ...]).squeeze()[:, None]
 
             loss = criterion(pixelvalues, imten[b_indices, :])
@@ -194,8 +194,8 @@ if __name__ == '__main__':
 
         for b_idx in range(0, len(coordsW), maxpointsW):
             b_indices = indicesW[b_idx:min(len(coordsW), b_idx + maxpointsW)]
-            b_coords = coordsW[b_indices, ...].cuda()
-            b_indices = b_indices.cuda()
+            b_coords = coordsW[b_indices, ...].to(config.device)
+            b_indices = b_indices.to(config.device)
             pixelvalues = model(b_coords[None, ...]).squeeze()[:, None]
 
             loss = criterion(pixelvalues, imten2[b_indices, :])
@@ -223,8 +223,8 @@ if __name__ == '__main__':
             with torch.no_grad():
                 for b_idx in range(0, len(coords), maxpts):
                     b_indices = indices[b_idx:min(len(coords), b_idx + maxpts)]
-                    b_coords = coords[b_indices, ...].cuda()
-                    b_indices = b_indices.cuda()
+                    b_coords = coords[b_indices, ...].to(config.device)
+                    b_indices = b_indices.to(config.device)
                     pixelvalues = model(b_coords[None, ...]).squeeze()[:, None]
 
                     im_estim[b_indices, :] = pixelvalues
