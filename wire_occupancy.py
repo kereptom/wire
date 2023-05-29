@@ -25,6 +25,7 @@ def prepare_hyperparameters():
         original='3_GT',
         expname='5_SPIMA_noAffine',
         expname2='5_SPIMB_noAffine',
+        slices=1,
         bit_depth=16,
         scale=1,
         omega0=30.0,
@@ -131,7 +132,7 @@ if __name__ == '__main__':
     maxpts = min(D * H * W, config.maxpoints)
 
     # Get the mask for the desired slices
-    slices = torch.arange(0, D, 1).to(config.device)  # 0, 10, 20, ..., 110
+    slices = torch.arange(0, D, config.slices).to(config.device)  # 0, 10, 20, ..., 110
     maskD = get_depth_mask(D, H, W, slices)
     maskW = get_width_mask(D, H, W, slices)
 
